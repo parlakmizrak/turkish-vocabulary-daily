@@ -49,7 +49,7 @@ jobs:
           if not token or not channel:
               raise SystemExit("Telegram secrets are missing")
 
-          words = json.loads(Path("turkish-word-bank.txt").read_text())
+          words = json.loads(Path("turkish-word-bank.txt").read_text(encoding="utf-8-sig"))
           state_path = Path("vocab_state.json")
           if state_path.exists():
               state = json.loads(state_path.read_text())
