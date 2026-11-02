@@ -1,0 +1,104 @@
+name: Daily Turkish Vocabulary
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-turkish-vocabulary
+  cancel-in-progress: false
+
+jobs:
+  post-vocabulary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Post three words
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+
+          DAILY_COUNT = 3
+
+          def send_message(token, channel, text):
+              data = urlencode({"chat_id": channel, "text": text}).encode()
+              request = Request(
+                  f"https://api.telegram.org/bot{token}/sendMessage", data=data
+              )
+              with urlopen(request, timeout=25) as response:
+                  result = json.loads(response.read())
+              if not result.get("ok"):
+                  raise ValueError(f"Telegram rejected the message: {result}")
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+          channel = os.environ.get("CHANNEL_ID", "")
+          if not token or not channel:
+              raise SystemExit("Telegram secrets are missing")
+
+          words = json.loads(Path("turkish-word-bank.txt").read_text())
+          state_path = Path("vocab_state.json")
+          if state_path.exists():
+              state = json.loads(state_path.read_text())
+          else:
+              state = {"next_index": 0}
+          next_index = int(state.get("next_index", 0))
+
+          if next_index >= len(words):
+              print("All vocabulary entries have already been posted")
+              raise SystemExit(0)
+
+          selected = words[next_index:next_index + DAILY_COUNT]
+          day = next_index // DAILY_COUNT + 1
+          sections = []
+          for offset, item in enumerate(selected, start=1):
+              section = (
+                  f"{offset}. {item['word']}\n"
+                  f"Type: {item['type']}\n"
+                  f"TR: {item['turkish']}\n"
+                  f"EN: {item['english']}"
+              )
+              if item.get("tenses"):
+                  forms = item["tenses"]
+                  section += (
+                      f"\nPresent continuous: {forms['present']}"
+                      f"\nSimple past: {forms['past']}"
+                      f"\nFuture: {forms['future']}"
+                  )
+              sections.append(section)
+
+          message = (
+              f"Daily Turkish Vocabulary — Day {day}\n\n"
+              + "\n\n".join(sections)
+              + "\n\nSources: Turkish Textbook, FrequencyWords, TDK"
+          )
+          send_message(token, channel, message)
+
+          next_index += len(selected)
+          state_path.write_text(json.dumps({"next_index": next_index}, indent=2) + "\n")
+          print(f"Posted {len(selected)} words; next index is {next_index}")
+          PY
+      - name: Save vocabulary position
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vocab_state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update vocabulary position"
+            git pull --rebase origin main
+            git push
+          fi
+          
