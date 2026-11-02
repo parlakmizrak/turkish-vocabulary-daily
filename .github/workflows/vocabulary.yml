@@ -66,10 +66,9 @@ jobs:
           sections = []
           for offset, item in enumerate(selected, start=1):
               section = (
-                  f"{offset}. {item['word']}\n"
+                  f"{offset}. {item['word']} — {item['english']}\n"
                   f"Type: {item['type']}\n"
-                  f"TR: {item['turkish']}\n"
-                  f"EN: {item['english']}"
+                  f"TR: {item['turkish']}"
               )
               if item.get("tenses"):
                   forms = item["tenses"]
