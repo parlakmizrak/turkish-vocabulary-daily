@@ -32,7 +32,7 @@ jobs:
           from urllib.parse import urlencode
           from urllib.request import Request, urlopen
 
-          DAILY_COUNT = 3
+          DAILY_COUNT = 5
 
           def send_message(token, channel, text):
               data = urlencode({"chat_id": channel, "text": text}).encode()
